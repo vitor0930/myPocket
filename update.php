@@ -5,11 +5,15 @@ require_once "conexao.php";
 
 try {
 
+    $id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT);
     $tipo = $_POST['tipo'] ?? '';
     $valor = filter_var($_POST['valor'] ?? null, FILTER_VALIDATE_FLOAT);
     $descricao = trim($_POST['descricao'] ?? '');
     $data = $_POST['data'] ?? '';
 
+    if (!$id) {
+        throw new Exception("ID inválido.");
+    }
     if (!in_array($tipo, ['receita', 'despesa'], true)) {
         throw new Exception("Tipo de transação inválido.");
     }
@@ -27,28 +31,31 @@ try {
 
     $hoje = new DateTime('today');
     if ($dataObj > $hoje) {
-    throw new Exception("A data não pode ser no futuro.");
+        throw new Exception("A data não pode ser no futuro.");
     }
 
     if ($tipo === 'despesa') {
 
-        $saldoStmt = $pdo->query("
+        $saldoStmt = $pdo->prepare("
             SELECT 
                 COALESCE(SUM(CASE WHEN tipo = 'receita' THEN valor ELSE 0 END), 0) -
                 COALESCE(SUM(CASE WHEN tipo = 'despesa' THEN valor ELSE 0 END), 0) AS saldo
             FROM transacoes
+            WHERE id != :id
         ");
+        $saldoStmt->execute([':id' => $id]);
         $saldoAtual = (float) $saldoStmt->fetch()['saldo'];
 
         if ($valor > $saldoAtual) {
             throw new Exception(
-                "Saldo insuficiente. Saldo atual: R$ " . number_format($saldoAtual, 2, ',', '.')
+                "Saldo insuficiente. Saldo disponível: R$ " . number_format($saldoAtual, 2, ',', '.')
             );
         }
     }
 
-    $sql = "INSERT INTO transacoes (tipo, valor, descricao, data) 
-            VALUES (:tipo, :valor, :descricao, :data)";
+    $sql = "UPDATE transacoes 
+            SET tipo = :tipo, valor = :valor, descricao = :descricao, data = :data 
+            WHERE id = :id";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
@@ -56,9 +63,10 @@ try {
         ':valor'     => $valor,
         ':descricao' => $descricao,
         ':data'      => $data,
+        ':id'        => $id,
     ]);
 
-    $_SESSION['mensagem'] = "Transação cadastrada com sucesso!";
+    $_SESSION['mensagem'] = "Transação atualizada com sucesso!";
 
 } catch (Exception $e) {
     $_SESSION['erro'] = $e->getMessage();
