@@ -1,0 +1,10 @@
+# SQL: 
+CREATE DATABASE IF NOT EXISTS mypocket;
+USE mypocket;
+CREATE TABLE IF NOT EXISTS transacoes(
+id INT PRIMARY KEY AUTO_INCREMENT,
+tipo VARCHAR(7),
+valor DECIMAL(10,2),
+descricao VARCHAR(200),
+data DATE
+)
